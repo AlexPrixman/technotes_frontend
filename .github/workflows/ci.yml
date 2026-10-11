@@ -1,0 +1,52 @@
+name: Frontend and end-to-end checks
+on:
+  push:
+    branches: [main, complete-technotes]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      api_ref:
+        description: API branch or commit to test
+        default: main
+        required: false
+permissions:
+  contents: read
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: technotes_frontend
+      - uses: actions/checkout@v4
+        with:
+          repository: AlexPrixman/techNotes
+          ref: ${{ inputs.api_ref || 'main' }}
+          path: techNotes
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: |
+            technotes_frontend/package-lock.json
+            techNotes/package-lock.json
+      - run: npm ci
+        working-directory: techNotes
+      - run: npm ci
+        working-directory: technotes_frontend
+      - run: npm test
+        working-directory: technotes_frontend
+      - run: npm run build
+        working-directory: technotes_frontend
+      - run: npm audit --audit-level=high
+        working-directory: technotes_frontend
+      - run: npx playwright install --with-deps chromium
+        working-directory: technotes_frontend
+      - run: npm run test:e2e
+        working-directory: technotes_frontend
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-failure-report
+          path: technotes_frontend/playwright-report/
+          retention-days: 7
