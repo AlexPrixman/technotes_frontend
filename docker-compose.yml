@@ -1,0 +1,41 @@
+services:
+  mongo:
+    image: mongo:8.0
+    volumes: ["technotes-data:/data/db"]
+    healthcheck:
+      test:
+        ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  api:
+    build:
+      context: ${TECHNOTES_API_DIR:-../techNotes}
+    environment:
+      NODE_ENV: development
+      PORT: "4000"
+      MONGODB_URI: mongodb://mongo:27017/technotes
+      CLIENT_ORIGINS: http://localhost:8080,http://127.0.0.1:8080
+      SESSION_SECRET: ${SESSION_SECRET:-}
+    depends_on:
+      mongo:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  web:
+    build: .
+    ports: ["127.0.0.1:8080:80"]
+    depends_on:
+      api:
+        condition: service_healthy
+volumes:
+  technotes-data:
